@@ -37,16 +37,20 @@ jobs:
       - name: Run Automated Tests
         id: run_tests
         env:
-          SIMULATE_BUG: ${{ inputs.simulate_bug || 'false' }}
+          SIMULATE_BUG: ${{ inputs.simulate_bug || vars.SIMULATE_BUG || 'false' }}
         run: ./gradlew test --rerun-tasks
 
       - name: Run AI AutoTriage Agent on Failure
         if: failure() # Executes only when tests fail
         env:
-          LLM_PROVIDER: ${{ secrets.GEMINI_API_KEY != '' && 'gemini' || (secrets.OPENAI_API_KEY != '' && 'openai' || 'mock') }}
+          # Priority: GitHub Repo Variable -> Detected Secret -> Default fallback
+          LLM_PROVIDER: ${{ vars.LLM_PROVIDER || (secrets.GEMINI_API_KEY != '' && 'gemini' || (secrets.OPENAI_API_KEY != '' && 'openai' || 'mock')) }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-1.5-flash' }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OLLAMA_BASE_URL: ${{ vars.OLLAMA_BASE_URL }}
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-4o-mini' }}
+          OLLAMA_BASE_URL: ${{ vars.OLLAMA_BASE_URL || 'http://localhost:11434' }}
+          OLLAMA_MODEL: ${{ vars.OLLAMA_MODEL || 'llama3.2' }}
         run: |
           echo "Test failure detected. Running AI AutoTriage Agent..."
           ./gradlew triage
