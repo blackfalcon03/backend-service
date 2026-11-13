@@ -1,0 +1,63 @@
+name: SDET CI & AI AutoTriage Pipeline
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+    inputs:
+      simulate_bug:
+        description: 'Simulate a business logic regression bug to trigger AI AutoTriage'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  test-and-triage:
+    name: Build, Test & AI Triage
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2 # Required for git diff
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Run Automated Tests
+        id: run_tests
+        env:
+          SIMULATE_BUG: ${{ inputs.simulate_bug || 'false' }}
+        run: ./gradlew test --rerun-tasks
+
+      - name: Run AI AutoTriage Agent on Failure
+        if: failure() # Executes only when tests fail
+        env:
+          LLM_PROVIDER: ${{ secrets.GEMINI_API_KEY != '' && 'gemini' || (secrets.OPENAI_API_KEY != '' && 'openai' || 'mock') }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OLLAMA_BASE_URL: ${{ vars.OLLAMA_BASE_URL }}
+        run: |
+          echo "Test failure detected. Running AI AutoTriage Agent..."
+          ./gradlew triage
+
+      - name: Upload Test & Triage Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-and-triage-reports
+          path: |
+            build/reports/tests/test/
+            build/test-results/test/
+            build/reports/ai-triage-report.md
+          if-no-files-found: ignore
