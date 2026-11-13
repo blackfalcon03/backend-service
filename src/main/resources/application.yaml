@@ -4,6 +4,9 @@ server:
 spring:
   application:
     name: backend-service
+  docker:
+    compose:
+      enabled: false
 
 springdoc:
   api-docs:
